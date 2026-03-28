@@ -108,16 +108,15 @@ h1 { text-align: center; margin-bottom: 12px; font-size: 20px; }
 }
 .editor-canvas-wrap {
     flex-shrink: 0; display: flex; justify-content: center;
-    align-items: center; padding: 8px;
+    align-items: center; padding: 4px;
     background: #111; border-bottom: 1px solid #333;
-    /* スマホでは画面の45%をプレビューに */
-    height: 45vh; min-height: 200px;
+    height: 30vh;
 }
 .editor canvas {
-    border-radius: 6px; cursor: grab;
+    border-radius: 4px; cursor: grab;
     touch-action: none;
     max-width: 100%; max-height: 100%;
-    object-fit: contain;
+    width: auto; height: 100%;
 }
 .editor canvas:active { cursor: grabbing; }
 .editor-panel {
