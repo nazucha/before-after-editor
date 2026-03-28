@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Before/After ペア選択</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Noto Sans JP', -apple-system, sans-serif;
+    background: #1a1a1a; color: #fff;
+    padding: 16px; padding-bottom: 90px;
+    -webkit-user-select: none; user-select: none;
+}
+h1 { text-align: center; margin-bottom: 12px; font-size: 20px; }
+
+/* ===== ログイン画面 ===== */
+#login-screen {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 80vh; gap: 20px;
+}
+#login-screen p { color: #aaa; font-size: 14px; text-align: center; }
+.btn-login {
+    padding: 14px 32px; border-radius: 8px; border: none;
+    font-size: 16px; font-weight: bold; cursor: pointer;
+    background: #4285f4; color: #fff;
+}
+
+/* ===== メイン画面 ===== */
+#main-app { display: none; }
+
+.group {
+    background: #2a2a2a; border-radius: 12px; padding: 12px;
+    margin-bottom: 16px;
+}
+.group-header {
+    font-size: 13px; color: #aaa; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.group-images {
+    display: flex; flex-wrap: wrap; gap: 6px;
+}
+.img-card {
+    position: relative; cursor: pointer; border-radius: 8px;
+    overflow: hidden; border: 3px solid transparent;
+    transition: border-color 0.2s; width: 120px; height: 120px;
+    background: #333;
+}
+@media (min-width: 600px) {
+    .img-card { width: 160px; height: 160px; }
+}
+.img-card img {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.img-card.selected-before { border-color: #ff4444; }
+.img-card.selected-after { border-color: #44aaff; }
+.img-card .label {
+    position: absolute; top: 4px; left: 4px; padding: 2px 8px;
+    border-radius: 4px; font-size: 11px; font-weight: bold;
+    display: none;
+}
+.img-card.selected-before .label { display: block; background: #ff4444; color: #fff; }
+.img-card.selected-after .label { display: block; background: #44aaff; color: #fff; }
+.img-card .loading-spinner {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: 24px; height: 24px; border: 3px solid #555;
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+
+/* ===== 下部コントロール ===== */
+.controls {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #333; padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-top: 1px solid #555; z-index: 50;
+}
+.controls .hint { color: #aaa; font-size: 12px; flex: 1; }
+.controls button {
+    padding: 10px 20px; border-radius: 8px; border: none;
+    font-size: 15px; font-weight: bold; cursor: pointer;
+    background: #6cb92d; color: #fff; white-space: nowrap;
+}
+.controls button:disabled { background: #555; color: #888; cursor: default; }
+
+/* ===== モードインジケーター ===== */
+.mode-indicator {
+    position: fixed; top: 16px; right: 16px;
+    padding: 6px 14px; border-radius: 8px; font-weight: bold;
+    z-index: 50; font-size: 13px;
+}
+.mode-before { background: #ff4444; }
+.mode-after { background: #44aaff; }
+
+/* ===== エディタ オーバーレイ ===== */
+.result {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.95); display: none;
+    z-index: 100; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.editor {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 16px; gap: 16px;
+}
+@media (min-width: 800px) {
+    .editor {
+        flex-direction: row; align-items: flex-start;
+        justify-content: center;
+    }
+}
+.editor canvas {
+    border-radius: 8px; cursor: grab; flex-shrink: 0;
+    max-width: 100%; touch-action: none;
+}
+.editor canvas:active { cursor: grabbing; }
+.editor-panel {
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%; max-width: 400px; padding: 8px;
+}
+@media (min-width: 800px) {
+    .editor-panel { max-height: 100vh; overflow-y: auto; min-width: 280px; }
+}
+.editor-panel h3 { color: #fff; font-size: 15px; margin: 4px 0 0; }
+.editor-panel button {
+    padding: 12px 24px; border-radius: 8px; border: none;
+    font-size: 16px; cursor: pointer; width: 100%;
+}
+.btn-close { background: #555; color: #fff; }
+.btn-download { background: #6cb92d; color: #fff; font-weight: bold; }
+.slider-group { display: flex; flex-direction: column; gap: 2px; }
+.slider-group label { color: #aaa; font-size: 12px; display: flex; justify-content: space-between; }
+.slider-group input[type=range] { width: 100%; }
+.slider-group input[type=text] {
+    width: 100%; padding: 8px; border-radius: 6px; border: none;
+    font-size: 15px; background: #444; color: #fff;
+}
+.slider-group .val { color: #fff; font-size: 12px; }
+.drag-hint { color: #888; font-size: 11px; text-align: center; }
+
+/* ===== ローディング ===== */
+.page-loading {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 40vh; gap: 12px; color: #aaa;
+}
+.page-loading .spinner {
+    width: 40px; height: 40px; border: 4px solid #333;
+    border-top-color: #6cb92d; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+</style>
+</head>
+<body>
+
+<!-- ===== ログイン画面 ===== -->
+<div id="login-screen">
+    <h1>Before / After Editor</h1>
+    <p>Google Drive の画像から<br>Instagram ストーリーズ用画像を作成</p>
+    <button class="btn-login" onclick="handleLogin()">Google でログイン</button>
+</div>
+
+<!-- ===== メインアプリ ===== -->
+<div id="main-app">
+    <h1>Before / After ペア選択</h1>
+    <p style="text-align:center;color:#aaa;margin-bottom:16px;font-size:13px;">
+        1. Before写真をクリック → 2. After写真をクリック → 3. 生成
+    </p>
+    <div id="mode-indicator" class="mode-indicator mode-before">Before を選択</div>
+    <div id="groups"></div>
+</div>
+
+<div class="controls" id="controls" style="display:none;">
+    <div class="hint" id="hint">Before写真を選んでください</div>
+    <button id="generate-btn" disabled onclick="generate()">生成</button>
+</div>
+
+<!-- ===== エディタ ===== -->
+<div class="result" id="result">
+    <div class="editor">
+        <canvas id="preview" width="1080" height="1920"></canvas>
+        <div class="editor-panel" id="editor-panel">
+            <div class="slider-group">
+                <label>タイトル</label>
+                <input type="text" id="title" placeholder="タイトル（例: 洗濯機分解洗浄）" value="清掃" oninput="renderPreview()" />
+            </div>
+
+            <h3>Before</h3>
+            <div class="slider-group">
+                <label>ズーム <span id="before-zoom-val">1.0x</span></label>
+                <input type="range" id="before-zoom" min="1.0" max="5.0" step="0.05" value="1.0" oninput="updateSliderVal(this,'before-zoom-val','x'); renderPreview()">
+            </div>
+            <div class="slider-group">
+                <label>回転 <span id="before-rotate-val">0°</span></label>
+                <input type="range" id="before-rotate" min="-180" max="180" step="1" value="0" oninput="document.getElementById('before-rotate-val').textContent=this.value+'°'; renderPreview()">
+            </div>
+            <div id="before-adjustments"></div>
+            <p class="drag-hint">ドラッグで位置調整</p>
+
+            <h3>After</h3>
+            <div class="slider-group">
+                <label>ズーム <span id="after-zoom-val">1.0x</span></label>
+                <input type="range" id="after-zoom" min="1.0" max="5.0" step="0.05" value="1.0" oninput="updateSliderVal(this,'after-zoom-val','x'); renderPreview()">
+            </div>
+            <div class="slider-group">
+                <label>回転 <span id="after-rotate-val">0°</span></label>
+                <input type="range" id="after-rotate" min="-180" max="180" step="1" value="0" oninput="document.getElementById('after-rotate-val').textContent=this.value+'°'; renderPreview()">
+            </div>
+            <div id="after-adjustments"></div>
+            <p class="drag-hint">ドラッグで位置調整</p>
+
+            <button class="btn-download" onclick="downloadImage()">ダウンロード</button>
+            <button class="btn-close" onclick="closeResult()">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// ============================================================
+// 設定 — ここを環境に合わせて変更してください
+// ============================================================
+const CONFIG = {
+    // Google Cloud Console で作成した OAuth 2.0 クライアント ID（ウェブアプリケーション）
+    CLIENT_ID: '570359649509-oqm23cctkgvr6gbq7h8hj4ssg2p8rja4.apps.googleusercontent.com',
+    // Google Drive フォルダ ID
+    FOLDER_ID: '0AOfsgg1fAZ18Uk9PVA',
+    // Drive API スコープ
+    SCOPE: 'https://www.googleapis.com/auth/drive.readonly',
+};
+
+// ============================================================
+// 状態
+// ============================================================
+let accessToken = null;
+let selectedBefore = null;
+let selectedAfter = null;
+let mode = 'before'; // 'before' | 'after'
+
+let beforeImg = null, afterImg = null, templateImg = null, logoImg = null;
+let beforeOffset = {x:0, y:0}, afterOffset = {x:0, y:0};
+let dragging = null, dragStart = {x:0, y:0}, dragOffsetStart = {x:0, y:0};
+
+const BEFORE_AREA = {x:0, y:0, w:1080, h:791};
+const AFTER_AREA  = {x:0, y:1129, w:1080, h:791};
+
+const ADJUSTMENTS = [
+    {id:'exposure',   label:'露出'},
+    {id:'highlights', label:'ハイライト'},
+    {id:'shadows',    label:'シャドウ'},
+    {id:'contrast',   label:'コントラスト'},
+    {id:'brightness', label:'明るさ'},
+    {id:'blackpoint', label:'ブラックポイント'},
+    {id:'saturation', label:'彩度'},
+    {id:'vibrance',   label:'自然な彩度'},
+    {id:'warmth',     label:'温かみ'},
+    {id:'tint',       label:'色合い'},
+];
+
+// ============================================================
+// Google OAuth2 認証
+// ============================================================
+let tokenClient = null;
+
+function initAuth() {
+    if (typeof google === 'undefined' || !google.accounts) {
+        setTimeout(initAuth, 200);
+        return;
+    }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CONFIG.CLIENT_ID,
+        scope: CONFIG.SCOPE,
+        callback: onTokenResponse,
+    });
+
+    // セッション中のトークンがあれば復元
+    const saved = sessionStorage.getItem('ba_access_token');
+    if (saved) {
+        accessToken = saved;
+        showMainApp();
+    }
+}
+
+function handleLogin() {
+    if (!tokenClient) {
+        alert('Google 認証ライブラリの読み込み中です。少々お待ちください。');
+        return;
+    }
+    tokenClient.requestAccessToken();
+}
+
+function onTokenResponse(resp) {
+    if (resp.error) {
+        console.error('Auth error:', resp);
+        alert('ログインに失敗しました');
+        return;
+    }
+    accessToken = resp.access_token;
+    sessionStorage.setItem('ba_access_token', accessToken);
+    showMainApp();
+}
+
+function showMainApp() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'block';
+    document.getElementById('controls').style.display = 'flex';
+    loadGroups();
+}
+
+// ============================================================
+// Google Drive API
+// ============================================================
+async function driveApiFetch(url) {
+    const resp = await fetch(url, {
+        headers: { Authorization: 'Bearer ' + accessToken },
+    });
+    if (resp.status === 401) {
+        // トークン期限切れ → 再認証
+        sessionStorage.removeItem('ba_access_token');
+        accessToken = null;
+        alert('セッションが切れました。再ログインしてください。');
+        location.reload();
+        throw new Error('Token expired');
+    }
+    return resp;
+}
+
+async function listDriveImages() {
+    let allFiles = [];
+    let pageToken = '';
+
+    do {
+        const params = new URLSearchParams({
+            q: `'${CONFIG.FOLDER_ID}' in parents and mimeType contains 'image/'`,
+            fields: 'nextPageToken,files(id,name,createdTime,thumbnailLink)',
+            pageSize: '200',
+            supportsAllDrives: 'true',
+            includeItemsFromAllDrives: 'true',
+        });
+        if (pageToken) params.set('pageToken', pageToken);
+
+        const resp = await driveApiFetch(
+            'https://www.googleapis.com/drive/v3/files?' + params.toString()
+        );
+        const data = await resp.json();
+        allFiles = allFiles.concat(data.files || []);
+        pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    // ファイル名プレフィックスでグループ化
+    const groups = {};
+    for (const f of allFiles) {
+        const parts = f.name.rsplit ? f.name.split('_') : f.name.split('_');
+        // "20260106_0716_unknown_298.jpeg" → グループキー = 最後の_より前
+        const lastIdx = f.name.lastIndexOf('_');
+        const groupKey = lastIdx > 0 ? f.name.substring(0, lastIdx) : f.name;
+        if (!groups[groupKey]) groups[groupKey] = [];
+        groups[groupKey].push(f);
+    }
+
+    // 新しい順にソート
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+async function loadDriveImageAsBlob(fileId) {
+    const resp = await driveApiFetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`
+    );
+    return await resp.blob();
+}
+
+function blobToImage(blob) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = url;
+    });
+}
+
+// ============================================================
+// 画像一覧の読み込み・表示
+// ============================================================
+async function loadGroups() {
+    const container = document.getElementById('groups');
+    container.innerHTML = '<div class="page-loading"><div class="spinner"></div><p>画像を読み込み中...</p></div>';
+
+    try {
+        const groups = await listDriveImages();
+        container.innerHTML = '';
+
+        for (const [key, files] of groups) {
+            if (files.length < 2) continue;
+
+            const div = document.createElement('div');
+            div.className = 'group';
+
+            const dateStr = key.substring(0, 8);
+            const formatted = dateStr.substring(0,4)+'/'+dateStr.substring(4,6)+'/'+dateStr.substring(6,8);
+
+            div.innerHTML =
+                '<div class="group-header"><span>' + formatted + ' (' + files.length + '枚)</span></div>' +
+                '<div class="group-images">' +
+                files.map(f => {
+                    // thumbnailLink があればサイズ変更して使用
+                    const thumbSrc = f.thumbnailLink
+                        ? f.thumbnailLink.replace(/=s\d+$/, '=s300')
+                        : '';
+                    return '<div class="img-card" data-id="' + f.id + '" data-name="' + f.name + '" onclick="selectImage(this)">' +
+                        (thumbSrc
+                            ? '<img src="' + thumbSrc + '" loading="lazy" crossorigin="anonymous" onerror="loadThumbFallback(this)" />'
+                            : '<div class="loading-spinner" data-file-id="' + f.id + '"></div>') +
+                        '<div class="label"></div></div>';
+                }).join('') +
+                '</div>';
+
+            container.appendChild(div);
+
+            // thumbnailLink がない画像は API でダウンロード
+            const noThumb = div.querySelectorAll('.loading-spinner[data-file-id]');
+            for (const spinner of noThumb) {
+                loadThumbViaApi(spinner, spinner.dataset.fileId);
+            }
+        }
+
+        if (container.children.length === 0) {
+            container.innerHTML = '<p style="text-align:center;color:#aaa;padding:40px;">画像が見つかりませんでした</p>';
+        }
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<p style="text-align:center;color:#f66;padding:40px;">読み込みエラー: ' + e.message + '</p>';
+    }
+}
+
+async function loadThumbViaApi(spinner, fileId) {
+    try {
+        const blob = await loadDriveImageAsBlob(fileId);
+        const url = URL.createObjectURL(blob);
+        const img = document.createElement('img');
+        img.src = url;
+        img.loading = 'lazy';
+        spinner.parentElement.replaceChild(img, spinner);
+    } catch (e) {
+        spinner.style.display = 'none';
+    }
+}
+
+function loadThumbFallback(img) {
+    // thumbnailLink が CORS で失敗した場合、API 経由でロード
+    const card = img.closest('.img-card');
+    const fileId = card.dataset.id;
+    const spinner = document.createElement('div');
+    spinner.className = 'loading-spinner';
+    img.replaceWith(spinner);
+    loadThumbViaApi(spinner, fileId);
+}
+
+// ============================================================
+// 画像選択
+// ============================================================
+function selectImage(el) {
+    const id = el.dataset.id;
+
+    if (mode === 'before') {
+        document.querySelectorAll('.selected-before').forEach(e => {
+            e.classList.remove('selected-before');
+            e.querySelector('.label').textContent = '';
+        });
+        el.classList.add('selected-before');
+        el.querySelector('.label').textContent = 'Before';
+        selectedBefore = id;
+        mode = 'after';
+        updateUI();
+    } else {
+        document.querySelectorAll('.selected-after').forEach(e => {
+            e.classList.remove('selected-after');
+            e.querySelector('.label').textContent = '';
+        });
+        el.classList.add('selected-after');
+        el.querySelector('.label').textContent = 'After';
+        selectedAfter = id;
+        updateUI();
+    }
+}
+
+function updateUI() {
+    const indicator = document.getElementById('mode-indicator');
+    const hint = document.getElementById('hint');
+    const btn = document.getElementById('generate-btn');
+
+    if (mode === 'before') {
+        indicator.className = 'mode-indicator mode-before';
+        indicator.textContent = 'Before を選択';
+        hint.textContent = 'Before写真を選んでください';
+    } else if (!selectedAfter) {
+        indicator.className = 'mode-indicator mode-after';
+        indicator.textContent = 'After を選択';
+        hint.textContent = 'After写真を選んでください';
+    } else {
+        indicator.className = 'mode-indicator mode-after';
+        indicator.textContent = '準備完了';
+        hint.textContent = '生成ボタンを押してください';
+    }
+    btn.disabled = !(selectedBefore && selectedAfter);
+}
+
+// ============================================================
+// 調整スライダー生成
+// ============================================================
+function createAdjustmentSliders(prefix, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    ADJUSTMENTS.forEach(adj => {
+        const div = document.createElement('div');
+        div.className = 'slider-group';
+        const sliderId = prefix + '-' + adj.id;
+        const valSpanId = sliderId + '-val';
+        div.innerHTML =
+            '<label>' + adj.label + ' <span id="' + valSpanId + '">0</span></label>' +
+            '<input type="range" id="' + sliderId + '" min="-100" max="100" step="1" value="0">';
+        div.querySelector('input').addEventListener('input', (function(vid) {
+            return function() {
+                document.getElementById(vid).textContent = this.value;
+                renderPreview();
+            };
+        })(valSpanId));
+        container.appendChild(div);
+    });
+}
+createAdjustmentSliders('before', 'before-adjustments');
+createAdjustmentSliders('after', 'after-adjustments');
+
+// ============================================================
+// エディタ：生成
+// ============================================================
+async function generate() {
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = true;
+    btn.textContent = '読込中...';
+
+    try {
+        // Drive からフル画像をダウンロード
+        const [bBlob, aBlob] = await Promise.all([
+            loadDriveImageAsBlob(selectedBefore),
+            loadDriveImageAsBlob(selectedAfter),
+        ]);
+        beforeImg = await blobToImage(bBlob);
+        afterImg = await blobToImage(aBlob);
+
+        // テンプレートとロゴ（初回のみ）
+        if (!templateImg) templateImg = await loadStaticImage('template.png');
+        if (!logoImg) logoImg = await loadStaticImage('logo.png');
+
+        // リセット
+        beforeOffset = {x:0, y:0};
+        afterOffset = {x:0, y:0};
+        resetSliders();
+
+        document.getElementById('result').style.display = 'block';
+        await document.fonts.ready;
+        renderPreview();
+    } catch (e) {
+        console.error(e);
+        alert('画像の読み込みに失敗しました: ' + e.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '生成';
+}
+
+function loadStaticImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+function resetSliders() {
+    ['before','after'].forEach(prefix => {
+        document.getElementById(prefix+'-zoom').value = 1.0;
+        document.getElementById(prefix+'-zoom-val').textContent = '1.0x';
+        document.getElementById(prefix+'-rotate').value = 0;
+        document.getElementById(prefix+'-rotate-val').textContent = '0°';
+        ADJUSTMENTS.forEach(adj => {
+            const el = document.getElementById(prefix+'-'+adj.id);
+            if (el) el.value = 0;
+            const v = document.getElementById(prefix+'-'+adj.id+'-val');
+            if (v) v.textContent = '0';
+        });
+    });
+}
+
+function updateSliderVal(el, valId, suffix) {
+    const v = parseFloat(el.value);
+    document.getElementById(valId).textContent = v.toFixed(1) + suffix;
+}
+
+// ============================================================
+// Canvas 描画
+// ============================================================
+function getAdjustments(prefix) {
+    const adj = {};
+    ADJUSTMENTS.forEach(a => {
+        adj[a.id] = parseInt(document.getElementById(prefix+'-'+a.id).value) || 0;
+    });
+    return adj;
+}
+
+function drawPhoto(ctx, img, area, zoom, offset, rotateDeg) {
+    const imgRatio = img.width / img.height;
+    const areaRatio = area.w / area.h;
+
+    let sw, sh;
+    if (imgRatio > areaRatio) {
+        sh = img.height / zoom;
+        sw = sh * areaRatio;
+    } else {
+        sw = img.width / zoom;
+        sh = sw / areaRatio;
+    }
+
+    const maxOffX = (img.width - sw) / 2;
+    const maxOffY = (img.height - sh) / 2;
+    const ox = Math.max(-maxOffX, Math.min(maxOffX, offset.x * img.width / area.w));
+    const oy = Math.max(-maxOffY, Math.min(maxOffY, offset.y * img.height / area.h));
+    const sx = (img.width - sw) / 2 - ox;
+    const sy = (img.height - sh) / 2 - oy;
+
+    if (rotateDeg && rotateDeg !== 0) {
+        ctx.save();
+        const cx = area.x + area.w / 2;
+        const cy = area.y + area.h / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate(rotateDeg * Math.PI / 180);
+        const rad = Math.abs(rotateDeg * Math.PI / 180);
+        const cos = Math.cos(rad), sin = Math.sin(rad);
+        const scale = Math.max(
+            (area.w * cos + area.h * sin) / area.w,
+            (area.w * sin + area.h * cos) / area.h
+        );
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, sx, sy, sw, sh, -area.w/2, -area.h/2, area.w, area.h);
+        ctx.restore();
+    } else {
+        ctx.drawImage(img, sx, sy, sw, sh, area.x, area.y, area.w, area.h);
+    }
+}
+
+function applyAdjustments(ctx, x, y, w, h, adj) {
+    if (ADJUSTMENTS.every(a => (adj[a.id] || 0) === 0)) return;
+
+    const imageData = ctx.getImageData(x, y, w, h);
+    const d = imageData.data;
+    const len = d.length;
+
+    const expF = adj.exposure ? Math.pow(2, adj.exposure / 100) : 1;
+    const brightAdd = (adj.brightness || 0) * 2.55;
+    const contF = 1 + (adj.contrast || 0) / 100;
+
+    for (let i = 0; i < len; i += 4) {
+        let r = d[i], g = d[i+1], b = d[i+2];
+
+        if (adj.exposure) { r *= expF; g *= expF; b *= expF; }
+        if (adj.brightness) { r += brightAdd; g += brightAdd; b += brightAdd; }
+        if (adj.contrast) {
+            r = (r-128)*contF+128; g = (g-128)*contF+128; b = (b-128)*contF+128;
+        }
+        if (adj.blackpoint) {
+            var bp = adj.blackpoint * 1.275;
+            if (bp > 0) { r=bp+r*(255-bp)/255; g=bp+g*(255-bp)/255; b=bp+b*(255-bp)/255; }
+            else { var f=1+bp/255; r*=Math.max(0,f); g*=Math.max(0,f); b*=Math.max(0,f); }
+        }
+        if (adj.highlights) {
+            var luma = 0.299*r+0.587*g+0.114*b;
+            if (luma > 128) { var amt=(luma-128)/127; var shift=adj.highlights*1.275*amt; r+=shift; g+=shift; b+=shift; }
+        }
+        if (adj.shadows) {
+            var luma2 = 0.299*r+0.587*g+0.114*b;
+            if (luma2 < 128) { var amt2=1-luma2/128; var shift2=adj.shadows*1.275*amt2; r+=shift2; g+=shift2; b+=shift2; }
+        }
+        if (adj.saturation) {
+            var gray=0.299*r+0.587*g+0.114*b; var sf=1+adj.saturation/100;
+            r=gray+(r-gray)*sf; g=gray+(g-gray)*sf; b=gray+(b-gray)*sf;
+        }
+        if (adj.vibrance) {
+            var maxC=Math.max(r,g,b),minC=Math.min(r,g,b);
+            var sat=maxC>0?(maxC-minC)/maxC:0;
+            var vAmt=(1-sat)*(adj.vibrance/100);
+            var vGray=0.299*r+0.587*g+0.114*b;
+            r=vGray+(r-vGray)*(1+vAmt); g=vGray+(g-vGray)*(1+vAmt); b=vGray+(b-vGray)*(1+vAmt);
+        }
+        if (adj.warmth) { var ww=adj.warmth/100*30; r+=ww; b-=ww; }
+        if (adj.tint) { var tt=adj.tint/100*30; g-=tt; r+=tt*0.5; b+=tt*0.5; }
+
+        d[i]=Math.max(0,Math.min(255,r));
+        d[i+1]=Math.max(0,Math.min(255,g));
+        d[i+2]=Math.max(0,Math.min(255,b));
+    }
+    ctx.putImageData(imageData, x, y);
+}
+
+function renderPreview() {
+    if (!beforeImg || !afterImg || !templateImg) return;
+
+    const canvas = document.getElementById('preview');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = 1080;
+    canvas.height = 1920;
+    // レスポンシブ表示サイズ
+    const maxW = Math.min(400, window.innerWidth - 32);
+    canvas.style.width = maxW + 'px';
+    canvas.style.height = Math.round(maxW * 1920 / 1080) + 'px';
+
+    const bZoom = parseFloat(document.getElementById('before-zoom').value);
+    const aZoom = parseFloat(document.getElementById('after-zoom').value);
+    const bRotate = parseInt(document.getElementById('before-rotate').value) || 0;
+    const aRotate = parseInt(document.getElementById('after-rotate').value) || 0;
+    const bAdj = getAdjustments('before');
+    const aAdj = getAdjustments('after');
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    drawPhoto(ctx, beforeImg, BEFORE_AREA, bZoom, beforeOffset, bRotate);
+    applyAdjustments(ctx, BEFORE_AREA.x, BEFORE_AREA.y, BEFORE_AREA.w, BEFORE_AREA.h, bAdj);
+
+    drawPhoto(ctx, afterImg, AFTER_AREA, aZoom, afterOffset, aRotate);
+    applyAdjustments(ctx, AFTER_AREA.x, AFTER_AREA.y, AFTER_AREA.w, AFTER_AREA.h, aAdj);
+
+    ctx.drawImage(templateImg, 0, 0, 1080, 1920);
+
+    // ロゴ描画
+    if (logoImg) {
+        const logoW = 530;
+        const logoH = Math.round(logoImg.height * (logoW / logoImg.width));
+        const logoX = 768 - logoW / 2;
+        const logoY = 1920 - logoH - 51;
+
+        const silC = document.createElement('canvas');
+        silC.width = logoImg.width; silC.height = logoImg.height;
+        const silCtx = silC.getContext('2d');
+        silCtx.drawImage(logoImg, 0, 0);
+        silCtx.globalCompositeOperation = 'source-in';
+        silCtx.fillStyle = '#fff';
+        silCtx.fillRect(0, 0, silC.width, silC.height);
+
+        const outW = 16;
+        for (let dx = -outW; dx <= outW; dx += 2) {
+            for (let dy = -outW; dy <= outW; dy += 2) {
+                if (dx*dx + dy*dy <= outW*outW) {
+                    ctx.drawImage(silC, logoX+dx, logoY+dy, logoW, logoH);
+                }
+            }
+        }
+        ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
+    }
+
+    // タイトル
+    const title = document.getElementById('title').value || '清掃';
+    ctx.font = "bold 70px 'Noto Sans JP', sans-serif";
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(title, 530 + (1080 - 530) / 2, 846 + 30);
+}
+
+// ============================================================
+// ドラッグで位置調整（マウス + タッチ対応）
+// ============================================================
+const previewCanvas = document.getElementById('preview');
+
+function getCanvasPointer(e) {
+    const rect = previewCanvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    return {
+        clientX: touch.clientX,
+        clientY: touch.clientY,
+        canvasY: (touch.clientY - rect.top) * (1080 / rect.width),
+    };
+}
+
+function onDragStart(e) {
+    const p = getCanvasPointer(e);
+    if (p.canvasY < 791) {
+        dragging = 'before';
+    } else if (p.canvasY > 1129) {
+        dragging = 'after';
+    } else {
+        return;
+    }
+    dragStart = {x: p.clientX, y: p.clientY};
+    dragOffsetStart = dragging === 'before' ? {...beforeOffset} : {...afterOffset};
+    e.preventDefault();
+}
+
+function onDragMove(e) {
+    if (!dragging) return;
+    const p = getCanvasPointer(e);
+    const rect = previewCanvas.getBoundingClientRect();
+    const scale = 1080 / rect.width;
+    const dx = (p.clientX - dragStart.x) * scale;
+    const dy = (p.clientY - dragStart.y) * scale;
+
+    if (dragging === 'before') {
+        beforeOffset = {x: dragOffsetStart.x + dx, y: dragOffsetStart.y + dy};
+    } else {
+        afterOffset = {x: dragOffsetStart.x + dx, y: dragOffsetStart.y + dy};
+    }
+    renderPreview();
+}
+
+function onDragEnd() { dragging = null; }
+
+previewCanvas.addEventListener('mousedown', onDragStart);
+window.addEventListener('mousemove', onDragMove);
+window.addEventListener('mouseup', onDragEnd);
+
+previewCanvas.addEventListener('touchstart', onDragStart, {passive: false});
+window.addEventListener('touchmove', onDragMove, {passive: false});
+window.addEventListener('touchend', onDragEnd);
+
+// ============================================================
+// ダウンロード（Canvas → JPEG）
+// ============================================================
+function downloadImage() {
+    const canvas = document.getElementById('preview');
+    canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const now = new Date();
+        const ts = now.getFullYear()
+            + String(now.getMonth()+1).padStart(2,'0')
+            + String(now.getDate()).padStart(2,'0')
+            + '_' + String(now.getHours()).padStart(2,'0')
+            + String(now.getMinutes()).padStart(2,'0')
+            + String(now.getSeconds()).padStart(2,'0');
+        a.download = 'story_' + ts + '.jpg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.95);
+}
+
+// ============================================================
+// 閉じる
+// ============================================================
+function closeResult() {
+    document.getElementById('result').style.display = 'none';
+    selectedBefore = null;
+    selectedAfter = null;
+    mode = 'before';
+    document.querySelectorAll('.selected-before, .selected-after').forEach(e => {
+        e.classList.remove('selected-before', 'selected-after');
+        e.querySelector('.label').textContent = '';
+    });
+    updateUI();
+}
+
+// ============================================================
+// 初期化
+// ============================================================
+initAuth();
+</script>
+</body>
+</html>
