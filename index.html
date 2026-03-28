@@ -99,47 +99,62 @@ h1 { text-align: center; margin-bottom: 12px; font-size: 20px; }
 .result {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.95); display: none;
-    z-index: 100; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    z-index: 100; overflow: hidden;
 }
+/* スマホ: キャンバス上部固定 + パネル下部スクロール */
 .editor {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 16px; gap: 16px;
+    display: flex; flex-direction: column;
+    height: 100%; width: 100%;
 }
-@media (min-width: 800px) {
-    .editor {
-        flex-direction: row; align-items: flex-start;
-        justify-content: center;
-    }
+.editor-canvas-wrap {
+    flex-shrink: 0; display: flex; justify-content: center;
+    align-items: center; padding: 8px;
+    background: #111; border-bottom: 1px solid #333;
+    /* スマホでは画面の45%をプレビューに */
+    height: 45vh; min-height: 200px;
 }
 .editor canvas {
-    border-radius: 8px; cursor: grab; flex-shrink: 0;
-    max-width: 100%; touch-action: none;
+    border-radius: 6px; cursor: grab;
+    touch-action: none;
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
 }
 .editor canvas:active { cursor: grabbing; }
 .editor-panel {
-    display: flex; flex-direction: column; gap: 8px;
-    width: 100%; max-width: 400px; padding: 8px;
+    flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 12px 16px 24px;
 }
-@media (min-width: 800px) {
-    .editor-panel { max-height: 100vh; overflow-y: auto; min-width: 280px; }
-}
-.editor-panel h3 { color: #fff; font-size: 15px; margin: 4px 0 0; }
+.editor-panel h3 { color: #fff; font-size: 14px; margin: 6px 0 0; }
 .editor-panel button {
     padding: 12px 24px; border-radius: 8px; border: none;
     font-size: 16px; cursor: pointer; width: 100%;
 }
 .btn-close { background: #555; color: #fff; }
 .btn-download { background: #6cb92d; color: #fff; font-weight: bold; }
-.slider-group { display: flex; flex-direction: column; gap: 2px; }
-.slider-group label { color: #aaa; font-size: 12px; display: flex; justify-content: space-between; }
-.slider-group input[type=range] { width: 100%; }
+.editor-actions {
+    display: flex; gap: 8px; margin-top: 8px;
+}
+.editor-actions button { flex: 1; }
+.slider-group { display: flex; flex-direction: column; gap: 1px; }
+.slider-group label { color: #aaa; font-size: 11px; display: flex; justify-content: space-between; }
+.slider-group input[type=range] { width: 100%; height: 28px; }
 .slider-group input[type=text] {
     width: 100%; padding: 8px; border-radius: 6px; border: none;
     font-size: 15px; background: #444; color: #fff;
 }
-.slider-group .val { color: #fff; font-size: 12px; }
-.drag-hint { color: #888; font-size: 11px; text-align: center; }
+.slider-group .val { color: #fff; font-size: 11px; }
+.drag-hint { color: #888; font-size: 10px; text-align: center; margin: 2px 0; }
+
+/* PC: 横並びレイアウト */
+@media (min-width: 800px) {
+    .editor { flex-direction: row; }
+    .editor-canvas-wrap {
+        height: 100%; width: 45%; border-bottom: none;
+        border-right: 1px solid #333;
+    }
+    .editor-panel { max-width: 400px; min-width: 300px; padding: 16px; }
+}
 
 /* ===== ローディング ===== */
 .page-loading {
@@ -180,14 +195,16 @@ h1 { text-align: center; margin-bottom: 12px; font-size: 20px; }
 <!-- ===== エディタ ===== -->
 <div class="result" id="result">
     <div class="editor">
-        <canvas id="preview" width="1080" height="1920"></canvas>
+        <div class="editor-canvas-wrap">
+            <canvas id="preview" width="1080" height="1920"></canvas>
+        </div>
         <div class="editor-panel" id="editor-panel">
             <div class="slider-group">
                 <label>タイトル</label>
                 <input type="text" id="title" placeholder="タイトル（例: 洗濯機分解洗浄）" value="清掃" oninput="renderPreview()" />
             </div>
 
-            <h3>Before</h3>
+            <h3>Before <span style="font-size:11px;color:#888;font-weight:normal;">（プレビューをドラッグで位置調整）</span></h3>
             <div class="slider-group">
                 <label>ズーム <span id="before-zoom-val">1.0x</span></label>
                 <input type="range" id="before-zoom" min="1.0" max="5.0" step="0.05" value="1.0" oninput="updateSliderVal(this,'before-zoom-val','x'); renderPreview()">
@@ -197,7 +214,6 @@ h1 { text-align: center; margin-bottom: 12px; font-size: 20px; }
                 <input type="range" id="before-rotate" min="-180" max="180" step="1" value="0" oninput="document.getElementById('before-rotate-val').textContent=this.value+'°'; renderPreview()">
             </div>
             <div id="before-adjustments"></div>
-            <p class="drag-hint">ドラッグで位置調整</p>
 
             <h3>After</h3>
             <div class="slider-group">
@@ -209,10 +225,11 @@ h1 { text-align: center; margin-bottom: 12px; font-size: 20px; }
                 <input type="range" id="after-rotate" min="-180" max="180" step="1" value="0" oninput="document.getElementById('after-rotate-val').textContent=this.value+'°'; renderPreview()">
             </div>
             <div id="after-adjustments"></div>
-            <p class="drag-hint">ドラッグで位置調整</p>
 
-            <button class="btn-download" onclick="downloadImage()">ダウンロード</button>
-            <button class="btn-close" onclick="closeResult()">閉じる</button>
+            <div class="editor-actions">
+                <button class="btn-download" onclick="downloadImage()">ダウンロード</button>
+                <button class="btn-close" onclick="closeResult()">閉じる</button>
+            </div>
         </div>
     </div>
 </div>
@@ -713,10 +730,9 @@ function renderPreview() {
 
     canvas.width = 1080;
     canvas.height = 1920;
-    // レスポンシブ表示サイズ
-    const maxW = Math.min(400, window.innerWidth - 32);
-    canvas.style.width = maxW + 'px';
-    canvas.style.height = Math.round(maxW * 1920 / 1080) + 'px';
+    // ラッパーに合わせて自動フィット（CSS max-width/max-height で制御）
+    canvas.style.width = 'auto';
+    canvas.style.height = '100%';
 
     const bZoom = parseFloat(document.getElementById('before-zoom').value);
     const aZoom = parseFloat(document.getElementById('after-zoom').value);
